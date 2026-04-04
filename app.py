@@ -188,7 +188,7 @@ def load_my_model():
         else:
             st.error("❌ Could not find emotion_model.h5 in the Google Drive folder.")
             st.stop()
-    return load_model(model_path)
+    return load_model(model_path, compile=False)
 
 with st.spinner("Loading model… (first run may take a moment to download)"):
     model = load_my_model()
