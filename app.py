@@ -173,13 +173,16 @@ CLASS_COLORS = ["#ef4444","#a855f7","#f97316","#22c55e","#60a5fa","#f59e0b","#94
 # ------------------ LOAD MODEL ------------------
 @st.cache_resource(show_spinner=False)
 def load_my_model():
+    import gdown
     model_path = "emotion_model.h5"
     if not os.path.exists(model_path):
-        st.error("⚠️ `emotion_model.h5` not found. Make sure it is committed to your repo.")
-        st.stop()
+        # ⬇️ Replace YOUR_FILE_ID with your actual Google Drive file ID
+        file_id = "YOUR_FILE_ID"
+        url = f"https://drive.google.com/uc?id={file_id}"
+        gdown.download(url, model_path, quiet=False)
     return load_model(model_path)
 
-with st.spinner("Loading model…"):
+with st.spinner("Loading model… (first run may take a moment to download)"):
     model = load_my_model()
 
 
