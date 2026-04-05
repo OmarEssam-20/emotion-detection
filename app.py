@@ -149,9 +149,12 @@ st.markdown("""
 
 
 # ------------------ CONSTANTS ------------------
-CLASS_NAMES  = ["Angry", "Disgust", "Fear", "Happy", "Sad", "Surprise", "Neutral"]
-CLASS_EMOJIS = ["😠",    "🤢",      "😨",   "😄",    "😢",  "😲",       "😐"]
-CLASS_COLORS = ["#ef4444","#a855f7","#f97316","#22c55e","#60a5fa","#f59e0b","#94a3b8"]
+# ⚠️ ORDER MATTERS: image_dataset_from_directory assigns labels alphabetically.
+# FER dataset folders sorted alphabetically:
+# angry(0), disgust(1), fear(2), happy(3), neutral(4), sad(5), surprise(6)
+CLASS_NAMES  = ["Angry", "Disgust", "Fear", "Happy", "Neutral", "Sad", "Surprise"]
+CLASS_EMOJIS = ["😠",    "🤢",      "😨",   "😄",    "😐",      "😢",  "😲"]
+CLASS_COLORS = ["#ef4444","#a855f7","#f97316","#22c55e","#94a3b8","#60a5fa","#f59e0b"]
 
 
 # ------------------ LOAD MODEL ------------------
@@ -211,22 +214,16 @@ if uploaded_file is not None:
         st.markdown('<p class="section-label">Input Image</p>', unsafe_allow_html=True)
         st.image(image, use_column_width=True)
 
-    # --- Preprocessing ---
-    input_shape = model.input_shape
-    target_h    = input_shape[1]
-    target_w    = input_shape[2]
-    channels    = input_shape[3] if len(input_shape) > 3 else 3
-
+    # --- Preprocessing: resize to 224x224 RGB to match ResNet50 training ---
     with st.spinner("Analyzing emotion…"):
-        if channels == 1:
-            img     = image.convert("L").resize((target_w, target_h))
-            img_arr = np.array(img, dtype=np.float32) / 255.0
-            img_arr = np.expand_dims(img_arr, axis=-1)
-        else:
-            img     = image.resize((target_w, target_h))
-            img_arr = np.array(img, dtype=np.float32) / 255.0
+        img     = image.resize((224, 224))
+        img_arr = np.array(img, dtype=np.float32)
 
-        img_arr    = np.expand_dims(img_arr, axis=0)
+        # Apply ResNet50 preprocess_input (same as training pipeline)
+        from tensorflow.keras.applications.resnet import preprocess_input
+        img_arr = preprocess_input(img_arr)
+        img_arr = np.expand_dims(img_arr, axis=0)
+
         prediction = model.predict(img_arr, verbose=0)[0]
 
     pred_idx   = int(np.argmax(prediction))
