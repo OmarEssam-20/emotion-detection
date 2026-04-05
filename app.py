@@ -30,12 +30,10 @@ st.markdown("""
         max-width: 800px;
     }
 
-    /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Hero section */
     .hero-wrap {
         text-align: center;
         padding: 2.5rem 1rem 1.5rem;
@@ -71,14 +69,12 @@ st.markdown("""
         letter-spacing: 0.3px;
     }
 
-    /* Divider */
     .divider {
         height: 1px;
         background: linear-gradient(90deg, transparent, #1e3a5f, transparent);
         margin: 1.5rem 0;
     }
 
-    /* Upload zone */
     [data-testid="stFileUploader"] {
         background: rgba(14, 30, 54, 0.6);
         border: 1.5px dashed rgba(56, 189, 248, 0.25);
@@ -90,14 +86,12 @@ st.markdown("""
         border-color: rgba(56, 189, 248, 0.55);
     }
 
-    /* Image display */
     [data-testid="stImage"] img {
         border-radius: 14px;
         border: 1px solid rgba(255,255,255,0.06);
         box-shadow: 0 8px 32px rgba(0,0,0,0.4);
     }
 
-    /* Result card */
     .result-card {
         background: rgba(14, 30, 54, 0.7);
         border: 1px solid rgba(56, 189, 248, 0.15);
@@ -124,7 +118,6 @@ st.markdown("""
         font-size: 1.15rem;
     }
 
-    /* Confidence bar */
     .conf-bar-bg {
         background: rgba(255,255,255,0.06);
         border-radius: 999px;
@@ -135,14 +128,10 @@ st.markdown("""
     .conf-bar-fill {
         height: 100%;
         border-radius: 999px;
-        background: linear-gradient(90deg, #0ea5e9, #38bdf8);
         transition: width 0.8s ease;
     }
 
-    .emotion-icon {
-        font-size: 2rem;
-        margin-bottom: 0.4rem;
-    }
+    .emotion-icon { font-size: 2rem; margin-bottom: 0.4rem; }
 
     .section-label {
         font-size: 11px;
@@ -153,13 +142,8 @@ st.markdown("""
         margin-bottom: 0.8rem;
     }
 
-    [data-testid="stAlert"] {
-        border-radius: 12px;
-    }
-
-    [data-testid="stSpinner"] {
-        color: #38bdf8;
-    }
+    [data-testid="stAlert"] { border-radius: 12px; }
+    [data-testid="stSpinner"] { color: #38bdf8; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -173,47 +157,18 @@ CLASS_COLORS = ["#ef4444","#a855f7","#f97316","#22c55e","#60a5fa","#f59e0b","#94
 # ------------------ LOAD MODEL ------------------
 @st.cache_resource(show_spinner=False)
 def load_my_model():
-    import gdown
-    import glob
-    import shutil
-    import tensorflow as tf
-    from tensorflow.keras.layers import InputLayer
-
-    model_path = "emotion_model.h5"
+    model_path = "emotion_model.keras"
     if not os.path.exists(model_path):
-        folder_url = "https://drive.google.com/drive/folders/16anpqc8PBGY78pL_asOI-6Bh4jJI8iHS"
-        gdown.download_folder(url=folder_url, quiet=False, use_cookies=False)
-        h5_files = glob.glob("**/*.h5", recursive=True)
-        if h5_files:
-            shutil.move(h5_files[0], model_path)
-        else:
-            st.error("❌ Could not find emotion_model.h5 in the Google Drive folder.")
-            st.stop()
-
-    # Fix: InputLayer config used 'batch_shape' & 'optional' in older Keras
-    # Current Keras doesn't accept these — translate them here
-    class CompatibleInputLayer(InputLayer):
-        @classmethod
-        def from_config(cls, config):
-            config = dict(config)
-            if "batch_shape" in config:
-                config["batch_input_shape"] = config.pop("batch_shape")
-            config.pop("optional", None)
-            return super().from_config(config)
-
+        st.error("❌ `emotion_model.keras` not found. Make sure it is committed to your repo.")
+        st.stop()
     try:
-        return tf.keras.models.load_model(
-            model_path,
-            compile=False,
-            custom_objects={"InputLayer": CompatibleInputLayer}
-        )
+        return load_model(model_path, compile=False)
     except Exception as e:
         st.error(f"❌ Could not load model: {e}")
         st.stop()
 
-with st.spinner("Loading model… (first run may take a moment to download)"):
+with st.spinner("Loading model…"):
     model = load_my_model()
-
 
 
 # ------------------ HERO ------------------
@@ -257,7 +212,7 @@ if uploaded_file is not None:
         st.image(image, use_column_width=True)
 
     # --- Preprocessing ---
-    input_shape = model.input_shape          # (None, H, W, C)
+    input_shape = model.input_shape
     target_h    = input_shape[1]
     target_w    = input_shape[2]
     channels    = input_shape[3] if len(input_shape) > 3 else 3
@@ -296,8 +251,7 @@ if uploaded_file is not None:
         </div>
         """, unsafe_allow_html=True)
 
-        # Runner-up hint
-        sorted_idx = np.argsort(prediction)[::-1]
+        sorted_idx  = np.argsort(prediction)[::-1]
         second_idx  = int(sorted_idx[1])
         second_conf = float(prediction[second_idx])
         if second_conf > 0.12:
