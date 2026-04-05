@@ -176,22 +176,59 @@ def load_my_model():
     import gdown
     import glob
     import shutil
+    import tensorflow as tf
 
     model_path = "emotion_model.h5"
     if not os.path.exists(model_path):
         folder_url = "https://drive.google.com/drive/folders/16anpqc8PBGY78pL_asOI-6Bh4jJI8iHS"
         gdown.download_folder(url=folder_url, quiet=False, use_cookies=False)
-        # Find the downloaded .h5 file and move it to the working directory
         h5_files = glob.glob("**/*.h5", recursive=True)
         if h5_files:
             shutil.move(h5_files[0], model_path)
         else:
             st.error("❌ Could not find emotion_model.h5 in the Google Drive folder.")
             st.stop()
-    return load_model(model_path, compile=False)
+
+    # Strategy 1: Standard load
+    try:
+        return tf.keras.models.load_model(model_path, compile=False)
+    except Exception:
+        pass
+
+    # Strategy 2: With custom legacy optimizer
+    try:
+        custom_objects = {"Adam": tf.keras.optimizers.legacy.Adam}
+        return tf.keras.models.load_model(model_path, compile=False, custom_objects=custom_objects)
+    except Exception:
+        pass
+
+    # Strategy 3: Patch Layer.from_config to ignore unknown kwargs
+    try:
+        original_from_config = tf.keras.layers.Layer.from_config
+
+        @classmethod
+        def permissive_from_config(cls, config):
+            import inspect
+            try:
+                return original_from_config.__func__(cls, config)
+            except TypeError:
+                sig = inspect.signature(cls.__init__)
+                valid = set(sig.parameters.keys()) - {"self"}
+                if "kwargs" not in str(sig):
+                    config = {k: v for k, v in config.items() if k in valid or k == "name"}
+                return original_from_config.__func__(cls, config)
+
+        tf.keras.layers.Layer.from_config = permissive_from_config
+        model = tf.keras.models.load_model(model_path, compile=False)
+        tf.keras.layers.Layer.from_config = original_from_config
+        return model
+    except Exception as e:
+        st.error(f"❌ Could not load model: {e}")
+        st.stop()
 
 with st.spinner("Loading model… (first run may take a moment to download)"):
     model = load_my_model()
+
 
 
 # ------------------ HERO ------------------
