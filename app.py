@@ -177,6 +177,7 @@ def load_my_model():
     import glob
     import shutil
     import tensorflow as tf
+    from tensorflow.keras.layers import InputLayer
 
     model_path = "emotion_model.h5"
     if not os.path.exists(model_path):
@@ -189,39 +190,23 @@ def load_my_model():
             st.error("❌ Could not find emotion_model.h5 in the Google Drive folder.")
             st.stop()
 
-    # Strategy 1: Standard load
-    try:
-        return tf.keras.models.load_model(model_path, compile=False)
-    except Exception:
-        pass
-
-    # Strategy 2: With custom legacy optimizer
-    try:
-        custom_objects = {"Adam": tf.keras.optimizers.legacy.Adam}
-        return tf.keras.models.load_model(model_path, compile=False, custom_objects=custom_objects)
-    except Exception:
-        pass
-
-    # Strategy 3: Patch Layer.from_config to ignore unknown kwargs
-    try:
-        original_from_config = tf.keras.layers.Layer.from_config
-
+    # Fix: InputLayer config used 'batch_shape' & 'optional' in older Keras
+    # Current Keras doesn't accept these — translate them here
+    class CompatibleInputLayer(InputLayer):
         @classmethod
-        def permissive_from_config(cls, config):
-            import inspect
-            try:
-                return original_from_config.__func__(cls, config)
-            except TypeError:
-                sig = inspect.signature(cls.__init__)
-                valid = set(sig.parameters.keys()) - {"self"}
-                if "kwargs" not in str(sig):
-                    config = {k: v for k, v in config.items() if k in valid or k == "name"}
-                return original_from_config.__func__(cls, config)
+        def from_config(cls, config):
+            config = dict(config)
+            if "batch_shape" in config:
+                config["batch_input_shape"] = config.pop("batch_shape")
+            config.pop("optional", None)
+            return super().from_config(config)
 
-        tf.keras.layers.Layer.from_config = permissive_from_config
-        model = tf.keras.models.load_model(model_path, compile=False)
-        tf.keras.layers.Layer.from_config = original_from_config
-        return model
+    try:
+        return tf.keras.models.load_model(
+            model_path,
+            compile=False,
+            custom_objects={"InputLayer": CompatibleInputLayer}
+        )
     except Exception as e:
         st.error(f"❌ Could not load model: {e}")
         st.stop()
